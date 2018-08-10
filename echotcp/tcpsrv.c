@@ -29,7 +29,10 @@ main(int argc, char **argv)
 {
     int                 listenfd, connfd;
     struct sockaddr_in  servaddr, cliaddr;
+    struct sockaddr_in  server_addr, client_addr;
+    socklen_t           server_len, client_len;
     char                buff[MAXLINE];
+    char                addr[INET_ADDRSTRLEN]={0};
     time_t              ticks;
     socklen_t           clilen;
     pid_t               childpid;
@@ -42,10 +45,8 @@ main(int argc, char **argv)
     servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port        = htons(9999); 
-
     if (bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr))==-1)
         printf("bind error\n");
-
 
     if (listen(listenfd, LISTENQ)==-1)
         printf("listen error\n");
@@ -54,6 +55,16 @@ main(int argc, char **argv)
     for ( ; ; ) {
         clilen = sizeof(cliaddr);
         connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+        memset(&server_addr,0,sizeof(server_addr));
+        memset(&client_addr,0,sizeof(client_addr));
+        server_len = sizeof(server_addr);
+        client_len = sizeof(client_addr);
+        getsockname(connfd, (struct sockaddr *) &server_addr, &server_len);
+        getpeername(connfd, (struct sockaddr *) &client_addr, &client_len);
+        inet_ntop(AF_INET,&client_addr.sin_addr, addr,INET_ADDRSTRLEN);
+        unsigned short p = ntohs(client_addr.sin_port);
+        //unsigned int client_addr = ntohl(c_a.sin_addr.s_addr);
+        printf("client addr:%s, client port : %u\n", addr,p);
         printf("accept success\n");
         if ((childpid = fork())==0)
         {
