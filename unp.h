@@ -12,3 +12,6 @@
 #include <stdlib.h>
 #define LISTENQ     1024
 #include    <time.h>
+#include <signal.h>
+#include <sys/wait.h>
+

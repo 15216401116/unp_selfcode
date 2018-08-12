@@ -1,4 +1,25 @@
-#include    "unp.h"
+#include    "../unp.h"
+
+void (*Signal(int signo, void(*func)(int sg)))(int)
+{
+    struct sigaction act, oldact;
+    act.sa_handler = func;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    if(sigaction(signo, &act, &oldact)<0)
+    {
+        return SIG_ERR;
+    }
+    return oldact.sa_handler;
+}
+void sig_child(int signo)
+{
+    pid_t pid;
+    int state;
+    pid = wait(&state);
+    printf("Handle SIGCHLD, child %d terminated\n", pid);
+}
+
 
 void str_echo( int sockfd )
 {
@@ -50,11 +71,23 @@ main(int argc, char **argv)
 
     if (listen(listenfd, LISTENQ)==-1)
         printf("listen error\n");
-
+    Signal(SIGCHLD, sig_child);
     printf("LISTEN\n");
     for ( ; ; ) {
+        printf("new loop\n");
         clilen = sizeof(cliaddr);
-        connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+        if ((connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen))<0)
+        {
+            if (errno == EINTR)
+            {
+                printf("EINTR\n");
+                continue;
+            }
+            else
+                printf("accept failed\n");
+
+        }
+        printf("accept success\n");
         memset(&server_addr,0,sizeof(server_addr));
         memset(&client_addr,0,sizeof(client_addr));
         server_len = sizeof(server_addr);
@@ -65,7 +98,6 @@ main(int argc, char **argv)
         unsigned short p = ntohs(client_addr.sin_port);
         //unsigned int client_addr = ntohl(c_a.sin_addr.s_addr);
         printf("client addr:%s, client port : %u\n", addr,p);
-        printf("accept success\n");
         if ((childpid = fork())==0)
         {
             printf("Inside child work process\n");
