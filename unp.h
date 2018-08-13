@@ -14,4 +14,16 @@
 #include    <time.h>
 #include <signal.h>
 #include <sys/wait.h>
+void (*Signal(int signo, void(*func)(int sg)))(int)
+ {
+     struct sigaction act, oldact;
+     act.sa_handler = func;
+     sigemptyset(&act.sa_mask);
+     act.sa_flags = 0;
+     if(sigaction(signo, &act, &oldact)<0)
+     {
+         return SIG_ERR;
+     }
+     return oldact.sa_handler;
+ }
 

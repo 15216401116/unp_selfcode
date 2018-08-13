@@ -51,7 +51,9 @@ again:
 int
 main(int argc, char **argv)
 {
-    int                 listenfd, connfd;
+    int                 listenfd, connfd, i, maxi, maxfd, sockfd;
+    int                 nready, client[FD_SETSIZE];
+    fd_set              rset, allset;
     struct sockaddr_in  servaddr, cliaddr;
     struct sockaddr_in  server_addr, client_addr;
     socklen_t           server_len, client_len;
@@ -76,44 +78,68 @@ main(int argc, char **argv)
         printf("listen error\n");
     Signal(SIGCHLD, sig_child);
     printf("LISTEN\n");
+    for (int j=0;j<FD_SETSIZE;j++)
+    {
+        client[j]=-1;
+    }
+    i = 0;
+    maxi = -1;
+    maxfd = listenfd;
+    FD_ZERO(&allset);
+    FD_SET(listenfd, &allset);
     for ( ; ; ) {
         printf("new loop\n");
-        clilen = sizeof(cliaddr);
-        if ((connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen))<0)
+        rset = allset;
+        nready = select(maxfd+1, &rset,NULL,NULL,NULL);
+        if(FD_ISSET(listenfd, &rset))
         {
-            if (errno == EINTR)
+            clilen = sizeof(cliaddr);
+            connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+        }
+        for(i=0;i<FD_SETSIZE;i++)
+        {
+            if(client[i]<0)
             {
-                printf("EINTR\n");
-                continue;
+                client[i]=connfd;
+                break;
             }
-            else
-                printf("accept failed\n");
 
         }
-        printf("accept success\n");
-        memset(&server_addr,0,sizeof(server_addr));
-        memset(&client_addr,0,sizeof(client_addr));
-        server_len = sizeof(server_addr);
-        client_len = sizeof(client_addr);
-        getsockname(connfd, (struct sockaddr *) &server_addr, &server_len);
-        getpeername(connfd, (struct sockaddr *) &client_addr, &client_len);
-        inet_ntop(AF_INET,&client_addr.sin_addr, addr,INET_ADDRSTRLEN);
-        unsigned short p = ntohs(client_addr.sin_port);
-        //unsigned int client_addr = ntohl(c_a.sin_addr.s_addr);
-        printf("client addr:%s, client port : %u\n", addr,p);
-        if ((childpid = fork())==0)
+        if(i == FD_SETSIZE)
+            printf("too many clients\n");
+        FD_SET(connfd, &allset);
+        if (connfd> maxfd)
         {
-            printf("Inside child work process\n");
-            close(listenfd);
-            str_echo(connfd);
-            close(connfd);
-            exit(0);
-
+            maxfd = connfd;
         }
-        else
+        if(i>maxi)
         {
-            printf("Inside parent process\n");
-            close(connfd);
+            maxi = i;
+        }
+        if(--nready<=0)
+        {
+            continue;
+        }
+        for(i=0;i<=maxi;i++)
+        {
+            if((sockfd = client[i])<0)
+                continue;
+            if(FD_ISSET(sockfd, &rset))
+            {
+
+                if((n=read(sockfd, buf,MAXLINE))==0)
+                {
+                    close(sockfd);
+                    FD_CLR(sockfd,&allset);
+                    client[i]=-1;
+                }
+                else
+                {
+                    write(sockfd, buf, n);
+                }
+                if(--nready<=0)
+                    break;
+            }
 
         }
     }
